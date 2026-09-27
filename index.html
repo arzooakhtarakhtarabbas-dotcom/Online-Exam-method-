@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ur" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>نظامِ آن لائن امتحان</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,"Noto Nastaliq Urdu","Noto Sans Arabic",sans-serif;background:#f3f6fb;color:#172033}
+header{background:linear-gradient(135deg,#0b1f4b,#163b82);color:#fff;padding:18px 16px;position:sticky;top:0;z-index:5;box-shadow:0 3px 14px #0002}
+.wrap{max-width:980px;margin:auto}.brand{font-size:24px;font-weight:800}.sub{opacity:.85;font-size:13px}
+nav{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}button,.btn{border:0;border-radius:10px;padding:11px 15px;font-size:15px;cursor:pointer;background:#174ea6;color:white;font-weight:700}
+button.secondary{background:#e8eef9;color:#17305f}button.danger{background:#b42318}.hidden{display:none!important}
+main{max-width:980px;margin:22px auto;padding:0 14px}.card{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;box-shadow:0 5px 22px #17203312;border:1px solid #e7ebf3}
+h1,h2,h3{margin-top:0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}@media(max-width:700px){.grid{grid-template-columns:1fr}.brand{font-size:20px}}
+input,textarea,select{width:100%;padding:12px;border:1px solid #cfd7e6;border-radius:10px;font-size:15px;background:#fff}textarea{min-height:80px;resize:vertical}
+label{font-weight:700;display:block;margin:8px 0 6px}.muted{color:#657086;font-size:13px}.msg{padding:12px;border-radius:10px;margin:10px 0;background:#edf5ff}.err{background:#fff0f0;color:#a51d1d}.ok{background:#ecfdf3;color:#087443}
+.exam-title{font-size:24px;font-weight:800}.timer{font-size:24px;font-weight:900;color:#b42318;background:#fff2f0;padding:8px 12px;border-radius:10px;display:inline-block}
+.q{border:1px solid #e1e6ef;border-radius:14px;padding:15px;margin:13px 0}.qtext{font-weight:800;font-size:18px;margin-bottom:10px}.opt{display:block;border:1px solid #d8deea;padding:11px;border-radius:10px;margin:8px 0;cursor:pointer}.opt:hover{background:#f6f9ff}
+table{width:100%;border-collapse:collapse}th,td{padding:10px;border-bottom:1px solid #e5e9f1;text-align:right}th{background:#f5f7fb}.pill{display:inline-block;padding:4px 9px;border-radius:20px;background:#eaf1ff;color:#174ea6;font-size:12px}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#toast{position:fixed;left:14px;bottom:14px;z-index:20;max-width:360px}
+.smallbtn{padding:7px 10px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+<div class="wrap">
+<div class="brand">📚 نظامِ آن لائن امتحان</div>
+<div class="sub">Teacher Panel + Student Exam System</div>
+<nav>
+<button onclick="show('home')">🏠 Home</button>
+<button onclick="show('student')">👨‍🎓 Student Test</button>
+<button onclick="show('teacher')">👨‍🏫 Teacher Panel</button>
+</nav>
+</div>
+</header>
+<main>
+<section id="home" class="card">
+<h1>آن لائن امتحانی نظام</h1>
+<p>استاد امتحان اور MCQs بنائے، طلبہ Exam Code سے موبائل یا کمپیوٹر پر ٹیسٹ دیں، اور نتائج database میں محفوظ ہوں۔</p>
+<div class="grid">
+<div class="card" style="margin:0;background:#f8fbff"><h3>👨‍🎓 طالب علم</h3><p class="muted">Exam Code، نام اور Roll Number درج کرکے امتحان شروع کریں۔</p><button onclick="show('student')">امتحان شروع کریں</button></div>
+<div class="card" style="margin:0;background:#f8fbff"><h3>👨‍🏫 استاد</h3><p class="muted">Login کرکے exams، questions اور results manage کریں۔</p><button onclick="show('teacher')">Teacher Panel</button></div>
+</div>
+</section>
+
+<section id="student" class="hidden">
+<div id="studentLogin" class="card">
+<h2>👨‍🎓 Student Test</h2>
+<div id="studentMsg"></div>
+<label>Exam Code</label><input id="scode" placeholder="مثلاً TAFSIR01">
+<label>طالب علم کا نام</label><input id="sname" placeholder="پورا نام">
+<label>Roll Number</label><input id="sroll" placeholder="مثلاً 101">
+<button onclick="startExam()">امتحان شروع کریں</button>
+</div>
+<div id="examBox" class="hidden"></div>
+</section>
+
+<section id="teacher" class="hidden">
+<div id="teacherAuth" class="card">
+<h2>👨‍🏫 Teacher Login</h2>
+<p class="muted">Teacher account کے لیے آپ کا Gmail استعمال ہو سکتا ہے۔</p>
+<div id="authMsg"></div>
+<label>Email</label><input id="email" type="email" value="arzooakhtarakhtarabbas@gmail.com">
+<label>Password</label><input id="password" type="password" placeholder="کم از کم 6 حروف">
+<div class="row">
+<button onclick="login()">Login</button><button class="secondary" onclick="signup()">نیا Account بنائیں</button>
+</div>
+</div>
+<div id="teacherPanel" class="hidden"></div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL = "PASTE_YOUR_SUPABASE_URL";
+const SUPABASE_PUBLISHABLE_KEY = "PASTE_YOUR_SUPABASE_PUBLISHABLE_KEY";
+const configured = !SUPABASE_URL.includes("PASTE_");
+const sb = configured ? supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY) : null;
+let currentExam=null, currentAttempt=null, timerId=null, questions=[];
+
+function el(id){return document.getElementById(id)}
+function show(id){
+  ["home","student","teacher"].forEach(x=>el(x).classList.add("hidden")); el(id).classList.remove("hidden");
+  if(id==="teacher") refreshTeacher();
+}
+function msg(id,text,err=false){el(id).innerHTML=`<div class="msg ${err?"err":""}">${text}</div>`}
+function toast(t){el("toast").innerHTML=`<div class="msg">${t}</div>`;setTimeout(()=>el("toast").innerHTML="",3500)}
+function needConfig(){if(!configured){alert("پہلے index.html میں Supabase URL اور Publishable Key ڈالیں۔");return true}return false}
+
+async function signup(){
+ if(needConfig())return;
+ const email=el("email").value.trim(), password=el("password").value;
+ const {error}=await sb.auth.signUp({email,password});
+ msg("authMsg",error?error.message:"Account بن گیا۔ اگر email confirmation فعال ہے تو Gmail میں confirmation link کھولیں۔",!!error);
+}
+async function login(){
+ if(needConfig())return;
+ const {error}=await sb.auth.signInWithPassword({email:el("email").value.trim(),password:el("password").value});
+ if(error) msg("authMsg",error.message,true); else refreshTeacher();
+}
+async function logout(){await sb.auth.signOut();refreshTeacher()}
+
+async function refreshTeacher(){
+ if(!configured){el("teacherAuth").classList.remove("hidden");el("teacherPanel").classList.add("hidden");return}
+ const {data:{user}}=await sb.auth.getUser();
+ if(!user){el("teacherAuth").classList.remove("hidden");el("teacherPanel").classList.add("hidden");return}
+ el("teacherAuth").classList.add("hidden");el("teacherPanel").classList.remove("hidden");
+ loadTeacher();
+}
+
+async function loadTeacher(){
+ const {data:exams,error}=await sb.from("exams").select("*").order("created_at",{ascending:false});
+ if(error){el("teacherPanel").innerHTML=`<div class="card"><div class="msg err">${error.message}</div></div>`;return}
+ el("teacherPanel").innerHTML=`
+ <div class="card"><div class="row"><h2>👨‍🏫 Teacher Dashboard</h2><button class="danger" onclick="logout()">Logout</button></div>
+ <button onclick="newExamForm()">➕ نیا امتحان</button>
+ <div id="teacherWork" style="margin-top:15px"></div></div>
+ <div class="card"><h3>میرے امتحانات</h3>${exams.length?`<table><tr><th>عنوان</th><th>Code</th><th>وقت</th><th>Status</th><th>Action</th></tr>${exams.map(e=>`<tr><td>${esc(e.title)}</td><td><span class="pill">${esc(e.code)}</span></td><td>${e.duration_seconds}s</td><td>${e.active?"Active":"Off"}</td><td><button class="smallbtn" onclick="editExam('${e.id}')">Manage</button> <button class="smallbtn secondary" onclick="results('${e.id}')">Results</button></td></tr>`).join("")}</table>`:"<p class='muted'>ابھی کوئی exam نہیں۔</p>"}</div>
+ <div id="resultsBox"></div>`;
+}
+function newExamForm(){
+ el("teacherWork").innerHTML=`<div class="card" style="background:#f8fbff"><h3>نیا امتحان</h3>
+ <label>Exam Title</label><input id="etitle" placeholder="مثلاً ماہانہ امتحان — تفسیر القرآن">
+ <label>Exam Code</label><input id="ecode" placeholder="مثلاً TAFSIR01">
+ <label>Time (seconds)</label><input id="etime" type="number" min="10" value="600">
+ <button onclick="createExam()">Save Exam</button></div>`;
+}
+async function createExam(){
+ const title=el("etitle").value.trim(),code=el("ecode").value.trim().toUpperCase(),duration=Number(el("etime").value);
+ if(!title||!code||duration<10)return toast("تمام fields درست بھریں۔");
+ const {data:{user}}=await sb.auth.getUser();
+ const {error}=await sb.from("exams").insert({teacher_id:user.id,title,code,duration_seconds:duration});
+ if(error)toast(error.message);else{toast("Exam بن گیا");loadTeacher()}
+}
+async function editExam(id){
+ const {data:e}=await sb.from("exams").select("*").eq("id",id).single();
+ const {data:qs}=await sb.from("questions").select("*").eq("exam_id",id).order("question_order");
+ el("teacherWork").innerHTML=`<div class="card" style="background:#f8fbff"><h3>${esc(e.title)} <span class="pill">${esc(e.code)}</span></h3>
+ <div class="grid"><div><label>Time seconds</label><input id="edur" type="number" value="${e.duration_seconds}"></div><div><label>Status</label><select id="eactive"><option value="true" ${e.active?"selected":""}>Active</option><option value="false" ${!e.active?"selected":""}>Off</option></select></div></div>
+ <button onclick="updateExam('${id}')">Save Exam Settings</button><hr>
+ <h3>MCQs</h3><div id="qform"></div><button onclick="addQuestion('${id}')">➕ Add MCQ</button>
+ <div id="qlist">${qs.map(q=>questionEditor(q)).join("")}</div></div>`;
+}
+function questionEditor(q){
+ const o=q.options||["","","",""];
+ return `<div class="q"><label>Question</label><textarea id="qt_${q.id}">${esc(oSafe(q.question_text))}</textarea>
+ ${o.map((x,i)=>`<label>Option ${i+1}</label><input id="qo_${q.id}_${i}" value="${esc(x)}">`).join("")}
+ <label>Correct Option</label><select id="qc_${q.id}">${o.map((x,i)=>`<option value="${i}" ${q.correct_index===i?"selected":""}>${i+1}</option>`).join("")}</select>
+ <button class="smallbtn" onclick="saveQuestion('${q.id}')">Save</button> <button class="smallbtn danger" onclick="deleteQuestion('${q.id}','${q.exam_id}')">Delete</button></div>`;
+}
+function addQuestion(examId){
+ const id="new"+Date.now();
+ const box=el("qform");box.innerHTML=`<div class="q"><h4>نیا MCQ</h4><textarea id="nqt" placeholder="سوال لکھیں"></textarea>
+ ${[0,1,2,3].map(i=>`<input id="nqo${i}" placeholder="Option ${i+1}" style="margin:5px 0">`).join("")}
+ <select id="nqc">${[0,1,2,3].map(i=>`<option value="${i}">Correct: Option ${i+1}</option>`).join("")}</select>
+ <button onclick="insertQuestion('${examId}')">Add</button></div>`;
+}
+async function insertQuestion(examId){
+ const {data:last}=await sb.from("questions").select("question_order").eq("exam_id",examId).order("question_order",{ascending:false}).limit(1);
+ const order=(last&&last.length?last[0].question_order:0)+1;
+ const options=[0,1,2,3].map(i=>el("nqo"+i).value.trim());
+ const {error}=await sb.from("questions").insert({exam_id:examId,question_order:order,question_text:el("nqt").value.trim(),options,correct_index:Number(el("nqc").value)});
+ if(error)toast(error.message);else editExam(examId);
+}
+async function saveQuestion(id){
+ const options=[0,1,2,3].map(i=>el(`qo_${id}_${i}`).value.trim());
+ const {error}=await sb.from("questions").update({question_text:el("qt_"+id).value.trim(),options,correct_index:Number(el("qc_"+id).value)}).eq("id",id);
+ toast(error?error.message:"MCQ محفوظ ہوگیا");
+}
+async function deleteQuestion(id,examId){if(!confirm("Delete?"))return;await sb.from("questions").delete().eq("id",id);editExam(examId)}
+async function updateExam(id){await sb.from("exams").update({duration_seconds:Number(el("edur").value),active:el("eactive").value==="true"}).eq("id",id);loadTeacher()}
+
+async function results(examId){
+ const {data,error}=await sb.from("attempts").select("*").eq("exam_id",examId).order("submitted_at",{ascending:false});
+ el("resultsBox").innerHTML=`<div class="card"><h3>📊 Results</h3>${error?`<div class="msg err">${error.message}</div>`:data.length?`<table><tr><th>Name</th><th>Roll</th><th>Score</th><th>%</th><th>Submitted</th></tr>${data.map(a=>`<tr><td>${esc(a.student_name)}</td><td>${esc(a.roll_number)}</td><td>${a.score}/${a.total_questions}</td><td>${a.percentage}%</td><td>${a.submitted_at?new Date(a.submitted_at).toLocaleString():"—"}</td></tr>`).join("")}</table>`:"<p class='muted'>No results yet.</p>"}</div>`;
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function oSafe(s){return String(s??"")}
+
+async function startExam(){
+ if(needConfig())return;
+ const code=el("scode").value.trim().toUpperCase(),name=el("sname").value.trim(),roll=el("sroll").value.trim();
+ if(!code||!name||!roll){msg("studentMsg","Code، نام اور Roll Number لازمی ہیں۔",true);return}
+ const {data,error}=await sb.rpc("start_exam",{p_code:code,p_name:name,p_roll:roll});
+ if(error){msg("studentMsg",error.message,true);return}
+ currentExam=data.exam; currentAttempt=data.attempt; questions=data.questions||[];
+ renderExam(name,roll);
+}
+function renderExam(name,roll){
+ el("studentLogin").classList.add("hidden");el("examBox").classList.remove("hidden");
+ el("examBox").innerHTML=`<div class="card"><div class="row"><div><div class="exam-title">${esc(currentExam.title)}</div><div class="muted">Student: ${esc(name)} | Roll: ${esc(roll)}</div></div><div id="timer" class="timer"></div></div></div>
+ <div class="card"><div id="questionList"></div><button onclick="submitExam(false)">Submit Test</button></div>`;
+ el("questionList").innerHTML=questions.map((q,i)=>`<div class="q"><div class="qtext">${i+1}. ${esc(q.question_text)}</div>${q.options.map((x,j)=>`<label class="opt"><input type="radio" name="q_${q.id}" value="${j}"> ${esc(x)}</label>`).join("")}</div>`).join("");
+ let left=currentExam.duration_seconds;tick(left);timerId=setInterval(()=>{left--;tick(left);if(left<=0){clearInterval(timerId);submitExam(true)}},1000);
+}
+function tick(s){let m=Math.floor(s/60),x=s%60;el("timer").textContent=`${String(m).padStart(2,"0")}:${String(x).padStart(2,"0")}`}
+async function submitExam(auto){
+ if(!currentAttempt)return;
+ clearInterval(timerId);
+ const answers=questions.map(q=>({question_id:q.id,selected_index:(document.querySelector(`input[name="q_${q.id}"]:checked`)||{}).value===undefined?null:Number(document.querySelector(`input[name="q_${q.id}"]:checked`).value)}));
+ const {data,error}=await sb.rpc("submit_exam",{p_attempt_id:currentAttempt.id,p_answers:answers,p_auto_submitted:auto});
+ if(error){el("examBox").innerHTML=`<div class="card"><div class="msg err">${error.message}</div></div>`;return}
+ el("examBox").innerHTML=`<div class="card"><h2>✅ امتحان مکمل ہوگیا</h2><div class="grid"><div><b>Score</b><div style="font-size:30px">${data.score}/${data.total_questions}</div></div><div><b>Percentage</b><div style="font-size:30px">${data.percentage}%</div></div></div><p>${data.auto_submitted?"وقت ختم ہونے پر امتحان خود submit ہوا۔":"آپ کا امتحان submit ہوگیا۔"}</p></div>`;
+ currentAttempt=null;
+}
+</script>
+</body>
+</html>
